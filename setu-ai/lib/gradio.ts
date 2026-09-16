@@ -58,7 +58,14 @@ export async function translateSignClip(blob: Blob): Promise<string> {
 
     es.addEventListener('error', (e: MessageEvent) => {
       cleanup()
-      reject(new Error('The translation model failed to process this clip. Please try again.'))
+      let message = 'The translation model failed to process this clip. Please try again.'
+      try {
+        const parsed = e.data ? JSON.parse(e.data) : null
+        if (parsed?.error) message = parsed.error
+      } catch {
+        // fall through to the generic message
+      }
+      reject(new Error(message))
     })
   })
 }

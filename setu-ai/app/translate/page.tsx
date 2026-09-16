@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react'
 import { translateSignClip } from '@/lib/gradio'
 import { Navbar } from '@/components/Navbar'
 import { CameraFeed } from '@/components/CameraFeed'
@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Upload,
 } from 'lucide-react'
 
 const SPACE_ID = 'Siddhartha121220/isign-translator-demo'
@@ -36,6 +37,7 @@ export default function TranslatePage() {
 
   const [sidebarWidth, setSidebarWidth] = useState(288)
   const isDragging = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const startResize = useCallback(() => {
     isDragging.current = true
@@ -72,6 +74,16 @@ export default function TranslatePage() {
       setIsRecognizing(true)
       setTranslationState('recording')
     }
+  }
+
+  const handleFileSelected = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setErrorMessage(null)
+    setRecognizedSentence('')
+    setTranslationState('translating')
+    handleClipRecorded(file)
   }
 
   const handleClipRecorded = async (blob: Blob) => {
@@ -210,7 +222,7 @@ export default function TranslatePage() {
                 <p className="text-sm text-destructive">{errorMessage}</p>
               ) : (
                 <p className="text-sm font-medium leading-snug">
-                  {recognizedSentence || 'Record a sentence in ISL to see the translation here.'}
+                  {recognizedSentence || 'Record or upload a clip of a sentence in ISL to see the translation here.'}
                 </p>
               )}
             </div>
@@ -238,7 +250,7 @@ export default function TranslatePage() {
             </Button>
           </div>
 
-          <div className="p-4 mt-auto">
+          <div className="p-4 mt-auto space-y-2">
             <Button
               onClick={toggleRecognition}
               disabled={translationState === 'translating'}
@@ -255,6 +267,27 @@ export default function TranslatePage() {
                   Record Sentence
                 </>
               )}
+            </Button>
+
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+              or
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleFileSelected}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isRecognizing || translationState === 'translating'}
+              variant="outline"
+              className="w-full gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Video
             </Button>
           </div>
         </aside>
