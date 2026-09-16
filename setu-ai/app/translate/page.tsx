@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Client } from '@gradio/client'
+import { translateSignClip } from '@/lib/gradio'
 import { Navbar } from '@/components/Navbar'
 import { CameraFeed } from '@/components/CameraFeed'
 import { XAIVisualizer } from '@/components/XAIVisualizer'
@@ -82,16 +82,14 @@ export default function TranslatePage() {
 
     const startedAt = performance.now()
     try {
-      const client = await Client.connect(SPACE_ID)
-      const result = await client.predict('/translate', { video_path: blob })
-      const text = Array.isArray(result.data) ? result.data[0] : result.data
-      setRecognizedSentence(String(text ?? ''))
+      const text = await translateSignClip(blob)
+      setRecognizedSentence(text)
       setLatency(Math.round(performance.now() - startedAt))
       setSessionCount((prev) => prev + 1)
       setTranslationState('done')
     } catch (err) {
-      console.error('Gradio translation request failed:', err)
-      setErrorMessage('Could not reach the translation model. Please try again.')
+      console.error('Translation request failed:', err)
+      setErrorMessage(err instanceof Error ? err.message : 'Could not reach the translation model. Please try again.')
       setTranslationState('error')
     }
   }
