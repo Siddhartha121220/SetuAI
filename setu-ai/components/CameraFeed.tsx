@@ -7,21 +7,26 @@ import { Camera, ShieldCheck } from 'lucide-react'
 interface CameraFeedProps {
   isActive?: boolean
   className?: string
+  onClipRecorded?: (blob: Blob) => void
 }
 
 export function CameraFeed({
   isActive = false,
   className,
+  onClipRecorded,
 }: CameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [streamStarted, setStreamStarted] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const animFrameId = useRef<number | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
 
-  // Start webcam feed when active
+  // Start webcam feed + clip recording when active
   useEffect(() => {
     let mediaStream: MediaStream | null = null
+    let cancelled = false
 
     async function initCamera() {
       if (isActive) {
@@ -30,26 +35,46 @@ export function CameraFeed({
             video: { width: 640, height: 480, facingMode: 'user' },
             audio: false
           })
+          if (cancelled) {
+            mediaStream.getTracks().forEach((track) => track.stop())
+            return
+          }
           if (videoRef.current) {
             videoRef.current.srcObject = mediaStream
             videoRef.current.play()
             setStreamStarted(true)
             setCameraError(null)
           }
+
+          chunksRef.current = []
+          const recorder = new MediaRecorder(mediaStream)
+          recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunksRef.current.push(e.data)
+          }
+          recorder.start()
+          recorderRef.current = recorder
         } catch (err: any) {
           console.warn('Webcam permission denied or unavailable, switching to dynamic skeleton simulation:', err)
           setCameraError('Webcam unavailable. Rendering live skeleton landmarks simulation.')
           setStreamStarted(false)
         }
-      } else {
-        stopCamera()
       }
     }
 
     function stopCamera() {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach((track) => track.stop())
+      const recorder = recorderRef.current
+      const stream = mediaStream
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.onstop = () => {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' })
+          stream?.getTracks().forEach((track) => track.stop())
+          onClipRecorded?.(blob)
+        }
+        recorder.stop()
+      } else {
+        stream?.getTracks().forEach((track) => track.stop())
       }
+      recorderRef.current = null
       if (videoRef.current) {
         videoRef.current.srcObject = null
       }
@@ -59,6 +84,7 @@ export function CameraFeed({
     initCamera()
 
     return () => {
+      cancelled = true
       stopCamera()
       if (animFrameId.current) cancelAnimationFrame(animFrameId.current)
     }
@@ -216,12 +242,12 @@ export function CameraFeed({
             </div>
             <div>
               <p className="font-medium text-foreground text-sm">
-                {isActive ? 'MediaPipe Holistic Tracking Active' : 'Camera Feed Ready'}
+                {isActive ? 'Recording Your Sentence' : 'Camera Feed Ready'}
               </p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                 {isActive
-                  ? 'Extracting RGB appearance features & 3D pose, hand, and facial keypoint tensors in real-time.'
-                  : 'Click "Start Recognition" to launch real-time ISL translation.'}
+                  ? 'Sign your sentence, then press Stop & Translate to send the clip for translation.'
+                  : 'Click "Record Sentence" to start signing.'}
               </p>
             </div>
             {cameraError && (
