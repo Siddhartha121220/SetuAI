@@ -2,20 +2,16 @@
 
 import React, { useRef, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { Camera, VideoOff, RefreshCw, Zap, ShieldCheck } from 'lucide-react'
+import { Camera, ShieldCheck } from 'lucide-react'
 
 interface CameraFeedProps {
   isActive?: boolean
-  showPlaceholder?: boolean
   className?: string
-  onLandmarksExtracted?: (landmarks: any) => void
 }
 
 export function CameraFeed({
   isActive = false,
-  showPlaceholder = true,
   className,
-  onLandmarksExtracted,
 }: CameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -77,7 +73,7 @@ export function CameraFeed({
 
     let step = 0
 
-    function drawSkeleton() {
+    const drawSkeleton = () => {
       step += 0.05
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
