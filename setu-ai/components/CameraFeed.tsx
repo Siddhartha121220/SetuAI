@@ -16,10 +16,8 @@ export function CameraFeed({
   onClipRecorded,
 }: CameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [streamStarted, setStreamStarted] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
-  const animFrameId = useRef<number | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
@@ -54,8 +52,8 @@ export function CameraFeed({
           recorder.start()
           recorderRef.current = recorder
         } catch (err: any) {
-          console.warn('Webcam permission denied or unavailable, switching to dynamic skeleton simulation:', err)
-          setCameraError('Webcam unavailable. Rendering live skeleton landmarks simulation.')
+          console.warn('Webcam permission denied or unavailable:', err)
+          setCameraError('Webcam unavailable. Check camera permissions and try again.')
           setStreamStarted(false)
         }
       }
@@ -86,114 +84,6 @@ export function CameraFeed({
     return () => {
       cancelled = true
       stopCamera()
-      if (animFrameId.current) cancelAnimationFrame(animFrameId.current)
-    }
-  }, [isActive])
-
-  // Canvas Landmark Overlay rendering loop
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    let step = 0
-
-    const drawSkeleton = () => {
-      step += 0.05
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      if (isActive) {
-        // Draw MediaPipe Skeleton overlay (Hands + Pose keypoints)
-        const width = canvas.width
-        const height = canvas.height
-
-        // Head/Face mesh nodes
-        ctx.fillStyle = '#a855f7' // Purple
-        const headX = width / 2 + Math.sin(step) * 10
-        const headY = height * 0.28 + Math.cos(step) * 5
-        ctx.beginPath()
-        ctx.arc(headX, headY, 18, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(168, 85, 247, 0.15)'
-        ctx.fill()
-        ctx.strokeStyle = '#a855f7'
-        ctx.stroke()
-
-        // Shoulders
-        const leftShoulder = { x: width * 0.38 + Math.sin(step) * 5, y: height * 0.45 }
-        const rightShoulder = { x: width * 0.62 + Math.sin(step) * 5, y: height * 0.45 }
-        const chest = { x: width / 2, y: height * 0.52 }
-
-        // Torso lines
-        ctx.strokeStyle = '#3b82f6' // Blue pose lines
-        ctx.lineWidth = 3
-        ctx.beginPath()
-        ctx.moveTo(leftShoulder.x, leftShoulder.y)
-        ctx.lineTo(rightShoulder.x, rightShoulder.y)
-        ctx.lineTo(chest.x, chest.y)
-        ctx.closePath()
-        ctx.stroke()
-
-        // Right Hand Keypoints (Animated ISL signing gestures)
-        const rightWrist = { x: width * 0.72 + Math.cos(step * 1.5) * 25, y: height * 0.55 + Math.sin(step * 2) * 20 }
-        ctx.strokeStyle = '#10b981' // Emerald green hand skeleton
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.moveTo(rightShoulder.x, rightShoulder.y)
-        ctx.lineTo(rightWrist.x, rightWrist.y)
-        ctx.stroke()
-
-        // 5 Fingers on Right Hand
-        const fingerTips = [
-          { x: rightWrist.x - 15, y: rightWrist.y - 30 },
-          { x: rightWrist.x - 5, y: rightWrist.y - 40 },
-          { x: rightWrist.x + 5, y: rightWrist.y - 42 },
-          { x: rightWrist.x + 15, y: rightWrist.y - 35 },
-          { x: rightWrist.x + 22, y: rightWrist.y - 20 }
-        ]
-
-        fingerTips.forEach((tip) => {
-          ctx.beginPath()
-          ctx.moveTo(rightWrist.x, rightWrist.y)
-          ctx.lineTo(tip.x, tip.y)
-          ctx.stroke()
-
-          ctx.fillStyle = '#34d399'
-          ctx.beginPath()
-          ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2)
-          ctx.fill()
-        })
-
-        // Left Hand Keypoints
-        const leftWrist = { x: width * 0.28 + Math.sin(step * 1.2) * 20, y: height * 0.58 + Math.cos(step * 1.8) * 15 }
-        ctx.strokeStyle = '#f59e0b' // Amber left hand
-        ctx.beginPath()
-        ctx.moveTo(leftShoulder.x, leftShoulder.y)
-        ctx.lineTo(leftWrist.x, leftWrist.y)
-        ctx.stroke()
-
-        ctx.fillStyle = '#fbbf24'
-        ctx.beginPath()
-        ctx.arc(leftWrist.x, leftWrist.y, 6, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Joint dots
-        const keypoints = [leftShoulder, rightShoulder, { x: headX, y: headY }]
-        keypoints.forEach((kp) => {
-          ctx.fillStyle = '#60a5fa'
-          ctx.beginPath()
-          ctx.arc(kp.x, kp.y, 5, 0, Math.PI * 2)
-          ctx.fill()
-        })
-      }
-
-      animFrameId.current = requestAnimationFrame(drawSkeleton)
-    }
-
-    drawSkeleton()
-
-    return () => {
-      if (animFrameId.current) cancelAnimationFrame(animFrameId.current)
     }
   }, [isActive])
 
@@ -215,15 +105,6 @@ export function CameraFeed({
           'absolute inset-0 h-full w-full object-cover',
           streamStarted ? 'opacity-90' : 'opacity-0'
         )}
-      />
-
-      {/* Canvas Skeleton Overlay (mirrored to stay aligned with the video) */}
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={360}
-        style={{ transform: 'scaleX(-1)' }}
-        className="absolute inset-0 h-full w-full pointer-events-none z-10"
       />
 
       {/* Fallback / Inactive State */}

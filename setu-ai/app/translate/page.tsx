@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react'
 import { translateSignClip } from '@/lib/gradio'
+import { getHfToken } from '@/lib/hfToken'
 import { Navbar } from '@/components/Navbar'
 import { CameraFeed } from '@/components/CameraFeed'
 import { XAIVisualizer } from '@/components/XAIVisualizer'
@@ -94,7 +95,7 @@ export default function TranslatePage() {
 
     const startedAt = performance.now()
     try {
-      const text = await translateSignClip(blob)
+      const text = await translateSignClip(blob, getHfToken())
       setRecognizedSentence(text)
       setLatency(Math.round(performance.now() - startedAt))
       setSessionCount((prev) => prev + 1)

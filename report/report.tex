@@ -1,0 +1,234 @@
+%% Springer Nature LaTeX template file
+%% Download the official class/style files from:
+%%   https://www.springernature.com/gp/authors/campaigns/latex-author-support
+%% Place sn-jnl.cls (and sn-mathphys-num.bst if used) in this same folder
+%% before compiling with pdflatex.
+
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
+
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\usepackage{hyperref}
+
+\raggedbottom
+
+\begin{document}
+
+\title[Setu AI: Multimodal Continuous ISL Recognition]{Setu AI: A Multimodal Cross-Attention Transformer Framework for Continuous Indian Sign Language Recognition}
+
+\author*[1]{\fnm{G} \sur{Siddhartha}}\email{siddhu.gopala@gmail.com}
+\author[1]{\fnm{S V} \sur{Likhith Reddy}}
+\author[1]{\fnm{P} \sur{Tarun}}
+
+\affil*[1]{\orgdiv{Department of Computer Science and Engineering}, \orgname{[Your Institution Name]}, \orgaddress{\city{[City]}, \country{India}}}
+
+\abstract{Communication barriers between the deaf and hard-of-hearing community and hearing individuals remain a significant challenge in India due to the limited availability of Indian Sign Language (ISL) interpreters. This paper presents Setu AI, a multimodal deep learning system for translating continuous Indian Sign Language video into fluent English text using only a webcam, with no specialized hardware or interpreter. Three complementary model architectures were designed and evaluated by the team on the iSign benchmark dataset: (1) a dual-stream fusion of MediaPipe Holistic pose/hand landmarks and VideoMAE RGB embeddings, combined via a Transformer encoder and decoded with a partially fine-tuned BART-base decoder; (2) a lightweight skeleton-only Transformer encoder feeding a pretrained T5-small decoder; and (3) a multimodal architecture combining 3D ResNet-18 RGB features and ST-GCN pose features, temporally modeled with a BiLSTM and multi-head attention, and decoded with an attention-based GRU. The system is deployed as a real-time web application (Next.js frontend, Hugging Face ZeroGPU backend) with live webcam capture, streamed predictions, and an explainable AI (XAI) visualizer of attention weights. Results show that while BLEU/ROUGE scores vary substantially across the three architectures, all confirm that continuous, sentence-level ISL-to-English translation from webcam video alone remains a challenging open problem, motivating further work on non-manual marker modeling and larger-scale multimodal fusion.}
+
+\keywords{Indian Sign Language, Continuous Sign Language Recognition, MediaPipe Holistic, Cross-Attention Transformer, Multimodal Fusion, Explainable AI, iSign Dataset}
+
+\maketitle
+
+\section{Introduction}\label{sec:intro}
+
+Sign language is the primary mode of communication for millions of deaf and hard-of-hearing individuals. In India alone, an estimated large deaf population relies on Indian Sign Language (ISL) for daily communication, yet the number of certified ISL interpreters is severely limited relative to demand. This shortage creates persistent barriers to education, healthcare, employment, and access to public services for the deaf community.
+
+Automatic Sign Language Recognition (SLR) systems aim to bridge this gap by translating sign language gestures into text or speech in real time. While substantial research has focused on American Sign Language (ASL) and other Western sign languages, ISL remains comparatively underexplored, particularly at the \emph{continuous, sentence level}, where signers produce fluid sequences of glosses without deliberate pauses between individual signs. This introduces the problem of \emph{co-articulation}, where the boundaries between consecutive signs blur into one another, along with challenges of signer variability (differences in signing speed, style, and body proportions) and environmental variation (lighting, background, and camera viewpoint).
+
+Existing approaches to SLR are broadly of two types: (i) RGB-only video-based models, which capture rich appearance and contextual cues but are sensitive to background clutter and lighting; and (ii) skeleton/landmark-only models, which are more robust to appearance variation but discard fine-grained visual detail such as facial expressions and subtle hand shape information that carry linguistic meaning in sign languages. Neither modality alone is sufficient for robust, generalizable recognition.
+
+This work presents \textbf{Setu AI}, a multimodal framework that fuses RGB video features with structured skeletal landmarks obtained via MediaPipe Holistic (body pose, hand joints, and facial mesh) using a Cross-Attention Transformer architecture. The framework is trained on the iSign dataset, a large-scale benchmark for continuous ISL recognition and translation. Beyond recognition accuracy, Setu AI incorporates an explainable AI (XAI) component that visualizes the learned cross-attention weights, allowing inspection of which modality, joint, or time step the model relies on for a given prediction, and is deployed as a real-time web-based workspace for practical use.
+
+The primary objectives of this work are to: (1) design a multimodal fusion architecture that jointly leverages RGB appearance and MediaPipe Holistic skeletal cues for continuous ISL recognition; (2) address co-articulation and long-term temporal dependencies using transformer-based sequence modeling; (3) provide interpretability of model predictions through cross-attention visualization; and (4) deliver the system as a real-time, deployable web application.
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work in sign language recognition, multimodal fusion, and transformer-based sequence modeling. Section~\ref{sec:methodology} describes the proposed Setu AI methodology, including data representation, the Cross-Attention Transformer architecture, and the system implementation. Section~\ref{sec:conclusion} concludes the paper and outlines directions for future work, followed by the references.
+
+\section{Related Work}\label{sec:related}
+
+\subsection{Sign Language Recognition}
+Early SLR systems relied on handcrafted features and classical classifiers such as Hidden Markov Models (HMMs) and Dynamic Time Warping (DTW) applied to hand trajectories and shape descriptors. With the advent of deep learning, Convolutional Neural Networks (CNNs) and Recurrent Neural Networks (RNNs), particularly Long Short-Term Memory (LSTM) networks, became the dominant approach for isolated and continuous SLR, learning spatial and temporal features directly from raw video. However, most large-scale SLR research has concentrated on ASL and Chinese Sign Language (CSL), with corpora such as How2Sign and CSL-Daily; ISL has comparatively limited annotated, continuous, sentence-level datasets, which has constrained progress on Indian Sign Language specifically.
+
+\subsection{Skeleton-Based and Multimodal Approaches}
+Skeleton- and landmark-based methods, using pose estimation frameworks such as OpenPose and, more recently, MediaPipe Holistic, represent signers as compact sets of body, hand, and facial keypoints. These representations are computationally efficient and robust to background and appearance variation, and have been used with Graph Convolutional Networks (GCNs) and transformer encoders to model spatio-temporal joint dependencies. However, purely skeletal approaches can lose fine-grained visual cues such as hand texture, subtle finger configuration, and facial expression intensity, which are linguistically significant in many sign languages, including ISL's non-manual markers. This has motivated multimodal fusion strategies that combine RGB and skeletal streams, typically through early fusion (feature concatenation), late fusion (score-level combination), or attention-based fusion, with cross-attention mechanisms increasingly favored for their ability to learn adaptive, context-dependent weighting between modalities.
+
+\subsection{Transformers for Sequence Modeling}
+The Transformer architecture, built on self-attention, has become the standard for sequence modeling tasks due to its ability to capture long-range temporal dependencies more effectively than recurrent architectures, while allowing parallelized training. In the context of continuous SLR, transformer encoders and encoder-decoder architectures have been applied to model gloss sequences and handle co-articulation by attending over the full temporal context rather than relying solely on local recurrence. Cross-attention transformers extend this idea to multimodal settings, allowing one modality (e.g., skeletal landmarks) to query and attend over another (e.g., RGB features) at each time step, enabling adaptive fusion rather than fixed-weight combination.
+
+\subsection{Explainable AI in Vision and Sequence Models}
+As deep learning models are increasingly deployed in accessibility-critical applications, interpretability has become important for trust and debugging. Attention-weight visualization has been widely used as an inherent explainability mechanism in transformer-based models, since attention scores can be directly inspected to understand which input regions, joints, or time steps most influence a prediction. This is distinct from post-hoc explanation methods such as Grad-CAM, and is particularly well suited to attention-native architectures such as the Cross-Attention Transformer used in this work.
+
+\subsection{Directly Comparable Recent Work}
+Several very recent papers parallel specific design choices made in Setu AI. Joshi et al.~\cite{isign} introduced the iSign benchmark and its SignVideo2Text/SignPose2Text baselines, against which Setu AI's results are compared in Section~\ref{sec:results}. Damdoo and Kumar~\cite{tmort} proposed a three-stream, multimodal, occlusion-resilient transformer (T-MORT) with dual cross-attention decoders, directly paralleling Setu AI's video+skeleton fusion feeding a language-model decoder. Ansari et al.~\cite{ansari} and Gogoi et al.~\cite{gogoi} present multimodal and end-to-end sign-transformer networks for continuous sentence-level SLT, forming close baselines for the fusion-transformer designs used here. Yang et al.~\cite{s2net} propose S2Net, a dual-pathway ``fast skeleton / slow video'' network conceptually similar to Setu AI's dual-stream skeleton and video encoders, while cross-modal knowledge transfer between RGB and skeleton streams~\cite{crossmodal} and attention-based multimodal fusion theory~\cite{statattn} underpin the fusion-layer design choices evaluated across Setu AI's three model variants.
+
+\subsection{Research Gap}
+Based on the above, three gaps motivate this work: (i) limited research on continuous, sentence-level ISL recognition compared to ASL and other sign languages; (ii) underexploration of transformer-based multimodal fusion combining RGB and MediaPipe Holistic landmarks specifically for ISL; and (iii) a lack of deployable, real-time systems that couple recognition with interpretability through attention visualization. Setu AI is designed to address these gaps using the recently introduced large-scale iSign dataset, and explores this design space through three distinct model architectures described in Section~\ref{sec:methodology}.
+
+\section{Methodology}\label{sec:methodology}
+
+\subsection{System Overview}
+Setu AI is built around a common pipeline: a Next.js web frontend records or accepts an uploaded video clip, which is sent to a Hugging Face Space (Gradio, ZeroGPU) for feature extraction, multimodal fusion, and sequence decoding, with the resulting English sentence streamed back to the browser via Server-Sent Events. Within this shared pipeline, the team designed and independently evaluated \textbf{three model architectures} (Sections~\ref{sec:model1}--\ref{sec:model3}), each combining RGB and/or skeletal cues with a different fusion and decoding strategy, in order to explore the multimodal design space identified in the related work.
+
+\subsection{Dataset}
+All three models are trained and evaluated on \textbf{iSign}~\cite{isign}, a large-scale benchmark for continuous Indian Sign Language processing containing over 118,000 video-sentence/phrase pairs drawn heavily from textbook-style ISL sentences. iSign is the first continuous (sentence-level, non-isolated-gesture) ISL benchmark at this scale, enabling multimodal RGB+skeletal research specific to ISL rather than ASL. Model~3 additionally uses a 30\% subset of iSign v1.1 with an 80/10/10 train/validation/test split.
+
+\subsection{Model 1: Dual-Stream Transformer with BART-base Decoder}\label{sec:model1}
+\textbf{Pipeline.} OpenCV extracts frames from the input clip; MediaPipe Holistic and VideoMAE run in parallel to obtain pose and RGB features, which are concatenated and projected before being passed to a partially fine-tuned BART decoder that generates the English sentence via beam search.
+
+\textbf{Feature extraction.} MediaPipe Holistic yields 75 landmarks per frame (33 body + 21 left-hand + 21 right-hand) with $(x,y,z,\text{confidence})$, giving a 300-dimensional vector per frame. Poses are normalized by centering on the shoulder midpoint and scaling by the nose-to-shoulder-midpoint distance, then padded/truncated to $T{=}450$ frames. Sixteen RGB frames are uniformly sampled and encoded with VideoMAE (base) into 768-dimensional embeddings, mean-pooled into 8 temporal tokens and projected to 256 dimensions.
+
+\textbf{Encoder-decoder.} The 300-dimensional pose sequence is linearly projected to 256 dimensions, combined with sinusoidal positional embeddings (max 450 frames), and passed through a 3-layer, 4-head Transformer encoder. The resulting skeleton tokens ($450{\times}256$) are concatenated with the 8 video tokens ($8{\times}256$) to form a fused context $Z \in \mathbb{R}^{458\times256}$, projected into BART's hidden dimension. Only the cross-attention layers and layer norms of \texttt{facebook/bart-base} are fine-tuned, so the decoder generates text via beam search (beam width 4, max length 64 tokens) while reusing most of its pretrained language modeling capacity. Key hyperparameters are summarized in Table~\ref{tab:model1-hp}.
+
+\begin{table}[h]
+\centering
+\caption{Model 1 (BART-base decoder) hyperparameters.}\label{tab:model1-hp}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Hyperparameter & Value \\
+\midrule
+Max pose length $T$ & 450 frames \\
+Skeleton input dim & 300 (75 keypoints $\times$ 4) \\
+Skeleton encoder $d_{model}$ & 256 \\
+Attention heads / encoder layers & 4 / 3 \\
+Video frames sampled & 16 (VideoMAE) \\
+Decoder & BART-base (cross-attention fine-tuned only) \\
+Beam size / max generation length & 4 / 64 tokens \\
+GPU budget & 60\,s (Hugging Face ZeroGPU) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Result.} On held-out iSign validation data, Model~1 achieves BLEU $\approx 4.0$ and ROUGE-1 $\approx 0.16$. Output is typically fluent English but often semantically inaccurate relative to the signed sentence; an ablation confirms the model does respond to the input rather than ignoring it, pointing to modeling limitations (no facial/non-manual markers, textbook-style training data, cross-attention-only fine-tuning) rather than a implementation defect.
+
+\subsection{Model 2: Skeleton-Only Transformer with T5-small Decoder}\label{sec:model2}
+\textbf{Pipeline.} A lightweight, skeleton-only design: OpenCV extracts up to 90 frames, MediaPipe Holistic extracts 75 landmarks per frame ($x,y,z$; no facial or RGB features), and a 3-layer Transformer encoder feeds a pretrained T5-small decoder — avoiding the cost of a dedicated RGB video encoder entirely.
+
+\textbf{Feature extraction and encoding.} Each frame yields 225 features ($75 \times 3$ coordinates, no confidence score and no explicit normalization; missing landmarks are zero-filled). The sequence is zero-padded, linearly projected from 225 to 256 dimensions, combined with sinusoidal positional encoding (max length 500), and processed by a 3-layer, 4-head Transformer encoder. The 256-dimensional output is projected to 512 dimensions to match T5-small's hidden size, which then autoregressively generates up to 20 output tokens. Table~\ref{tab:model2-hp} lists the main hyperparameters.
+
+\begin{table}[h]
+\centering
+\caption{Model 2 (T5-small decoder) hyperparameters.}\label{tab:model2-hp}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Hyperparameter & Value \\
+\midrule
+Max video frames & 90 \\
+Skeleton input dim & 225 (33 pose + 21+21 hand $\times$ 3) \\
+Skeleton projection dim / heads / layers & 256 / 4 / 3 \\
+Decoder & T5-small (512-dim hidden) \\
+Target / max generated length & 40 / 20 tokens \\
+Optimizer / learning rate & AdamW / $1\times10^{-4}$ \\
+Training epochs / data split & up to 800 / 85\%--15\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Result.} Model~2 reports BLEU $= 0.91$, ROUGE-1 $= 0.84$, training loss $0.0069$, validation loss $0.018$, inference latency $1.2$\,s/video, and confidence $92\%$. These figures are notably higher than Models~1 and~3, and should be interpreted cautiously alongside the evaluation-set size and possible overlap between training and validation splits, given the compact skeleton-only design and lack of a held-out generalization benchmark equivalent to iSign's published baselines.
+
+\subsection{Model 3: 3D ResNet-18 + ST-GCN with BiLSTM-Attention-GRU}\label{sec:model3}
+\textbf{Pipeline.} Continuous video is split into windows of 4 consecutive sign segments. For each segment, 16 RGB frames ($112{\times}112$) are encoded by a Kinetics-400-pretrained 3D ResNet-18 into 512-dimensional visual features, while a 64-frame, 203-landmark (33 body + 21+21 hand + 128 face) pose sequence, shoulder-centered and scale-normalized, is encoded by a Spatial-Temporal Graph Convolutional Network (ST-GCN) into a 512-dimensional pose feature.
+
+\textbf{Fusion and decoding.} The RGB and pose features are concatenated (1024-D) and projected back to 512-D. A 2-layer bidirectional LSTM models temporal relationships across the 4 segments, followed by 8-head multi-head attention with residual connection and layer normalization to emphasize the most relevant segment features. A 2-layer, attention-based GRU decoder then generates English tokens using beam search ($k{=}4$). Table~\ref{tab:model3-hp} lists the key hyperparameters.
+
+\begin{table}[h]
+\centering
+\caption{Model 3 (ResNet-18 + ST-GCN + BiLSTM-Attention-GRU) hyperparameters.}\label{tab:model3-hp}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Hyperparameter & Value \\
+\midrule
+RGB frames / segment (size) & 16 ($112\times112$) \\
+Pose frames / landmarks & 64 / $203\times3$ \\
+Window size & 4 segments \\
+Shared feature dimension & 512 \\
+BiLSTM layers / attention heads & 2 / 8 \\
+GRU decoder layers & 2 \\
+Optimizer / learning rate & AdamW / $3\times10^{-4}$ \\
+Beam search & $k=4$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Result.} On the held-out test split, Model~3 achieves BLEU-1/2/3/4 of 18.39/5.84/1.78/0.56 (train) and 12.86/3.11/1.18/0.53 (test), ROUGE-L of 10.60/5.78, Word Error Rate of 97.97\%/97.40\%, and test loss 5.5114 — reflecting the difficulty of continuous, sentence-level ISL-to-English translation at this scale.
+
+\subsection{Explainable AI and Deployment}
+Across the three model variants, attention-native components (cross-attention in Model~1, encoder self-attention in Model~2, and multi-head attention in Model~3) expose interpretable weights that Setu AI's frontend visualizes as a dynamic heatmap, showing modality reliance, joint-level attention rankings, and temporal attention patterns. All models are served through a configurable Hugging Face Inference API / dedicated endpoint client with a mock-inferencer fallback, exposed via a FastAPI REST/WebSocket backend (health/status, model metadata, Hugging Face configuration, and \texttt{POST /api/predict}), and consumed by a Next.js/React/Tailwind CSS frontend with live webcam capture, canvas-based skeleton overlay, streamed predictions, JSON/TXT export, and a research dashboard mapping the project to SDG 4 (Quality Education), SDG 9 (Industry, Innovation and Infrastructure), and SDG 10 (Reduced Inequalities).
+
+\section{Results and Discussion}\label{sec:results}
+
+Table~\ref{tab:results} summarizes the reported translation-quality metrics for the three model variants alongside literature reference points from the iSign benchmark~\cite{isign} and general machine translation.
+
+\begin{table}[h]
+\centering
+\caption{Comparison of translation-quality metrics across the three Setu AI model variants and literature reference points.}\label{tab:results}
+\begin{tabular}{@{}lll@{}}
+\toprule
+System & BLEU & ROUGE \\
+\midrule
+General-domain machine translation (reference) & 30--40 & -- \\
+SOTA sign-language translation (reference) & 12--15 & -- \\
+iSign SignVideo2Text/SignPose2Text baseline~\cite{isign} (BLEU-4) & $\approx 1.47$ & -- \\
+Model 1 -- Dual-stream + BART-base & $\approx 4.0$ & ROUGE-1 $\approx 0.16$ \\
+Model 2 -- Skeleton-only + T5-small & $0.91$\textsuperscript{a} & ROUGE-1 $= 0.84$\textsuperscript{a} \\
+Model 3 -- ResNet-18/ST-GCN + BiLSTM-Attn-GRU (test) & BLEU-4 $= 0.53$ & ROUGE-L $= 5.78$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+\noindent\textsuperscript{a}Reported on Model 2's internal validation split; not directly comparable to the iSign held-out benchmark used for Models 1 and 3.
+
+The three architectures illustrate distinct trade-offs. Model~1's dual-stream RGB+skeleton fusion into a partially fine-tuned BART decoder produces grammatically fluent but often semantically inaccurate output, exceeding the published iSign baseline BLEU-4 of $\approx 1.47$ while remaining well below general-purpose MT and reported sign-language-translation SOTA. Model~3's richer multimodal pipeline (3D-CNN RGB features, ST-GCN pose features, and 203 landmarks including facial points) is evaluated with the most rigorous train/test protocol among the three (BLEU-1 through BLEU-4 and WER on a held-out test split), and its high Word Error Rate ($>97\%$) underscores how far continuous ISL-to-English translation remains from solved, even with richer, non-manual-marker-inclusive input. Model~2's substantially higher reported scores stem from its narrower, skeleton-only design evaluated on an internal validation split rather than the harder iSign benchmark protocol used for Models 1 and 3, and should not be read as outperforming the other two on a like-for-like basis.
+
+A consistent theme across all three models is that the omission or partial inclusion of non-manual markers (facial expression, head movement, mouth shape) -- which carry grammatical meaning in ISL, such as negation and question marking -- limits translation accuracy. Model~1 and Model~2 exclude facial landmarks entirely, while Model~3's 128 face landmarks were the closest attempt at capturing this signal. This, together with iSign's textbook-style sentence distribution not fully generalizing to casual signing, is identified as the primary avenue for improving all three architectures.
+
+\section{Member Contributions}\label{sec:contributions}
+\begin{table}[h]
+\centering
+\caption{Technical contribution of each team member.}\label{tab:contributions}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Member & Contribution \\
+\midrule
+G Siddhartha & Frontend \& Model 1 (dual-stream Transformer + BART-base) \\
+S V Likhith Reddy & Backend \& Model 2 (skeleton-only Transformer + T5-small) \\
+P Tarun & Frontend/Backend integration \& Model 3 (ResNet-18/ST-GCN + BiLSTM-Attn-GRU) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusion}\label{sec:conclusion}
+
+This paper presented Setu AI, a webcam-only, real-time system for translating continuous Indian Sign Language video into fluent English text, and compared three distinct multimodal model architectures developed by the team: a dual-stream Transformer with a partially fine-tuned BART-base decoder, a lightweight skeleton-only Transformer with a T5-small decoder, and a 3D-CNN/ST-GCN multimodal encoder with a BiLSTM-attention-GRU decoder. Evaluated against the iSign benchmark and prior literature, all three confirm that continuous, sentence-level ISL-to-English translation from webcam video alone remains an open and difficult problem, with omitted or partial non-manual-marker modeling identified as a key limiting factor. The system's explainable AI visualizer and real-time web deployment nonetheless position Setu AI as a practical, interpretable step toward reducing communication barriers for the deaf and hard-of-hearing community, in alignment with SDG 4, 9, and 10. Future work includes richer non-manual marker modeling, larger and more diverse training data, and unified benchmarking of all three architectures under a single evaluation protocol.
+
+\bibliographystyle{sn-mathphys-num}
+\begin{thebibliography}{99}
+
+\bibitem{isign} Joshi, A., Mohanty, R., Kanakanti, D., Mangla, D., Choudhary, A., Barbate, S., Modi, A.: iSign: A Benchmark for Indian Sign Language Processing. In: Findings of the Association for Computational Linguistics: ACL 2024 (2024).
+
+\bibitem{mediapipe} Grishchenko, I., Bazarevsky, V.: MediaPipe Holistic -- Simultaneous Face, Hand and Pose Prediction, on Device. Google AI Blog (2020).
+
+\bibitem{transformer} Vaswani, A., Shazeer, N., Parmar, N., et al.: Attention Is All You Need. In: Advances in Neural Information Processing Systems (NeurIPS) (2017).
+
+\bibitem{camgoz} Camgoz, N.C., Koller, O., Hadfield, S., Bowden, R.: Sign Language Transformers: Joint End-to-end Sign Language Recognition and Translation. In: Proceedings of CVPR (2020).
+
+\bibitem{tmort} Damdoo, R., Kumar, K.: Enhanced Sign Language Translation Using a Three-Stream Multimodal Occlusion-Resilient Transformer (T-MORT). Discover Computing (Springer) (2025).
+
+\bibitem{ansari} Ansari, S., Kumar, K., Damdoo, R.: Sign Language Translation Using Multi-modal Transformer Network. In: National Conference on Computer Vision, Pattern Recognition, Image Processing and Graphics (NCVPRIPG), Springer CCIS (2026).
+
+\bibitem{gogoi} Gogoi, M., Kumar, K., Damdoo, R.: End-to-End Simple Indian Sign Language Sentence Translation Using a Sign Transformer Network. In: IEEE International Conference on Computing, Communication and Networking Technologies (ICCCNT) (2024).
+
+\bibitem{s2net} Yang, Z., Min, J., Chen, X.: S2Net: Skeleton-Aware SlowFast Network for Efficient Sign Language Recognition. Springer (2025).
+
+\bibitem{crossmodal} Anonymous: Visual Context Learning Based on Cross-Modal Knowledge for Continuous Sign Language Recognition. The Visual Computer (Springer) (2024).
+
+\bibitem{statattn} Anonymous: Multimodal Fusion Framework Based on Statistical Attention and Contrastive Attention for Sign Language Recognition. IEEE Transactions on Mobile Computing (2024).
+
+\bibitem{openpose} Cao, Z., Simon, T., Wei, S.-E., Sheikh, Y.: OpenPose: Realtime Multi-Person 2D Pose Estimation using Part Affinity Fields. IEEE Transactions on Pattern Analysis and Machine Intelligence (2019).
+
+\bibitem{gcn} Yan, S., Xiong, Y., Lin, D.: Spatial Temporal Graph Convolutional Networks for Skeleton-Based Action Recognition. In: Proceedings of AAAI (2018).
+
+\end{thebibliography}
+
+\end{document}

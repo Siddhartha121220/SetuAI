@@ -1,8 +1,12 @@
 # Python
 backend/venv/
+backend-new-model/venv/
 backend/__pycache__/
 **/__pycache__/
 *.pyc
+
+# Large model artifacts (not committed; see backend-new-model/isl_infer.py)
+New_model_results/
 
 # Env files
 .env
